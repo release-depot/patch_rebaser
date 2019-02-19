@@ -1,8 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """Main module."""
 
-import configparser
+try:
+    import configparser
+except ImportError:  # Python 2
+    import ConfigParser as configparser
 import logging
 import os
 
@@ -21,7 +24,7 @@ def find_patches_branch(repo, remote, distgit_branch):
             branch = '%s-trunk-patches' % '-'.join(parts)
         else:
             branch = '%s-patches' % '-'.join(parts)
-        LOGGER.debug(f"Checking if branch {branch} exists...")
+        LOGGER.debug("Checking if branch %s exists...", branch)
         if repo.branch.exists(branch, remote):
             return branch
         parts.pop()
@@ -78,7 +81,7 @@ def get_patches_repo(distroinfo_repo, pkg_name, key):
     pkg = query.get_package(distro_info, pkg_name)
     repo = pkg.get(key)
     if not repo:
-        LOGGER.warning(f"No {key} repo listed for package {pkg_name}")
+        LOGGER.warning("No %s repo listed for package %s", key, pkg_name)
     return repo
 
 
@@ -153,9 +156,9 @@ def main():
     repo.branch.create(branch, remote_branch, reset_if_exists=True)
 
     # Rebase
-    LOGGER.info(f"Rebasing {branch} to {commit}")
+    LOGGER.info("Rebasing %s to %s", branch, commit)
     repo.branch.rebase_to_hash(branch, commit)
-    LOGGER.info(f"Rebasing {branch} to {remote_branch}")
+    LOGGER.info("Rebasing %s to %s", branch, remote_branch)
     repo.branch.rebase_to_hash(branch, remote_branch)
 
     # TODO: Clean up if rebase failed?
