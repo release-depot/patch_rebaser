@@ -1,0 +1,11 @@
+pull_request_rules:
+  - name: automatic merge when CI passes and approvals
+    conditions:
+      - "#approved-reviews-by>=1"
+      - status-success=continuous-integration/travis-ci/pr
+      - base=master
+    actions:
+      merge:
+        strict: true
+        method: rebase
+        rebase_fallback: merge
