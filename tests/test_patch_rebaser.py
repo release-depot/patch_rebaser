@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from unittest.mock import Mock
+from mock import Mock
 import pytest
 
 from patch_rebaser.patch_rebaser import (
