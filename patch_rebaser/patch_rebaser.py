@@ -125,6 +125,20 @@ def main():
     git_name = rebaser_config.get('DEFAULT', 'git_name')
     git_email = rebaser_config.get('DEFAULT', 'git_email')
     patches_repo_key = rebaser_config.get('distroinfo', 'patches_repo_key')
+    pkg_to_process = rebaser_config.get('DEFAULT', 'packages_to_process')
+
+    if pkg_to_process:
+        if "," in pkg_to_process:
+            pkg_to_process = pkg_to_process.split(",")
+        else:
+            pkg_to_process = [pkg_to_process]
+
+        if pkg_name not in pkg_to_process:
+            LOGGER.info(
+                "Skipping %s, as package not in list of packages_to_process",
+                pkg_name
+            )
+            return
 
     set_up_git_config(git_name, git_email)
 
