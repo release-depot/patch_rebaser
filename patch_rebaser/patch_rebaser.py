@@ -175,9 +175,6 @@ def main():
     LOGGER.info("Rebasing %s to %s", branch, remote_branch)
     repo.branch.rebase_to_hash(branch, remote_branch)
 
-    # TODO: Clean up if rebase failed?
-    # (Clean index, workspace, checkout master)
-
 
 if __name__ == "__main__":
     try:
