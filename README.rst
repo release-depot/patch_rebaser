@@ -21,9 +21,10 @@ Pre-requisites
 
 To run DLRN with the script:
 
- * Place `patch_rebaser.py` on the same host. Make sure the file is executable
- * Place `patch_rebaser.ini` at the same level as the script
- * Update custom_preprocess= in DLRN's `projects.ini` with full path to the script
+ * Place `patch_rebaser.py` on the same host. Make sure the file is executable.
+ * Place `patch_rebaser.ini` in the same directory as the script. You can use
+   `patch_rebaser.ini.example` as a template.
+ * Update custom_preprocess= in DLRN's `projects.ini` with full path to the script.
 
 Make sure everything is set up correctly to authenticate with any of
 the expect git remotes (SSH keys, SSL certs, host keys, kerberos config, etc).
