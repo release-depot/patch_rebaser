@@ -31,20 +31,17 @@ def find_patches_branch(repo, remote, distgit_branch):
     return None
 
 
-def get_downstream_distgit_branch(user):
+def get_downstream_distgit_branch(dlrn_projects_ini):
     """Get downstream distgit branch info from DLRN projects.ini"""
-    # projects.ini location is standard
-    DLRN_PROJECTS_INI = "/usr/local/share/dlrn/{0}/projects.ini".format(user)
-
     config = configparser.ConfigParser()
-    config.read(DLRN_PROJECTS_INI)
+    config.read(dlrn_projects_ini)
     return config.get('downstream_driver', 'downstream_distro_branch')
 
 
-def get_patches_branch(repo, remote, user):
+def get_patches_branch(repo, remote, dlrn_projects_ini):
     """Get the patches branch name"""
     # Get downstream distgit branch from DLRN config
-    distgit_branch = get_downstream_distgit_branch(user)
+    distgit_branch = get_downstream_distgit_branch(dlrn_projects_ini)
 
     # Guess at patches branch based on the distgit branch name
     return find_patches_branch(repo, remote, distgit_branch)
@@ -126,6 +123,11 @@ def main():
     git_email = rebaser_config.get('DEFAULT', 'git_email')
     patches_repo_key = rebaser_config.get('distroinfo', 'patches_repo_key')
     pkg_to_process = rebaser_config.get('DEFAULT', 'packages_to_process')
+    try:
+        dlrn_projects_ini = rebaser_config.get('DEFAULT', 'dlrn_projects_ini')
+    except configparser.NoOptionError:
+        dlrn_projects_ini = (
+            "/usr/local/share/dlrn/{0}/projects.ini".format(user))
 
     if pkg_to_process:
         if "," in pkg_to_process:
@@ -159,7 +161,7 @@ def main():
     repo.remote.fetch_all()
 
     # Create local patches branch
-    branch = get_patches_branch(repo, remote, user)
+    branch = get_patches_branch(repo, remote, dlrn_projects_ini)
 
     # Not every project has a -patches branch for every release
     if not branch:
