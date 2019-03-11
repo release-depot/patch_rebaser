@@ -10,6 +10,7 @@ import logging
 import os
 
 from distroinfo import info, query
+from git_wrapper import exceptions as git_exceptions
 from git_wrapper.repo import GitRepo
 
 LOGGER = logging.getLogger("patch_rebaser")
@@ -172,10 +173,15 @@ def main():
     repo.branch.create(branch, remote_branch, reset_if_exists=True)
 
     # Rebase
-    LOGGER.info("Rebasing %s to %s", branch, commit)
-    repo.branch.rebase_to_hash(branch, commit)
-    LOGGER.info("Rebasing %s to %s", branch, remote_branch)
-    repo.branch.rebase_to_hash(branch, remote_branch)
+    try:
+        LOGGER.info("Rebasing %s to %s", branch, commit)
+        repo.branch.rebase_to_hash(branch, commit)
+        LOGGER.info("Rebasing %s to %s", branch, remote_branch)
+        repo.branch.rebase_to_hash(branch, remote_branch)
+    except git_exceptions.RebaseException:
+        LOGGER.info("Could not rebase. Cleaning up.")
+        repo.branch.abort_rebase()
+        raise
 
 
 if __name__ == "__main__":
