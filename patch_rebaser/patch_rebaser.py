@@ -176,8 +176,6 @@ def main():
     try:
         LOGGER.info("Rebasing %s to %s", branch, commit)
         repo.branch.rebase_to_hash(branch, commit)
-        LOGGER.info("Rebasing %s to %s", branch, remote_branch)
-        repo.branch.rebase_to_hash(branch, remote_branch)
     except git_exceptions.RebaseException:
         LOGGER.info("Could not rebase. Cleaning up.")
         repo.branch.abort_rebase()
