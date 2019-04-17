@@ -1,0 +1,20 @@
+From d973f9c055ceb15042d906c1b3cd40f047392b3d Mon Sep 17 00:00:00 2001
+From: Julie Pichon <jpichon@redhat.com>
+Date: Wed, 17 Apr 2019 11:09:33 +0100
+Subject: [PATCH] LOCAL-ONLY - Test patch
+
+---
+ local_only_patch.txt | 1 +
+ 1 file changed, 1 insertion(+)
+ create mode 100644 local_only_patch.txt
+
+diff --git a/local_only_patch.txt b/local_only_patch.txt
+new file mode 100644
+index 0000000..ded59b7
+--- /dev/null
++++ b/local_only_patch.txt
+@@ -0,0 +1 @@
++This file only exists in the local repository.
+-- 
+2.20.1
+

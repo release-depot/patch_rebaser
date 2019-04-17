@@ -118,9 +118,9 @@ class Rebaser(object):
         """Initialize the Rebaser
 
        :param git_wrapper.GitRepo repo: An initialized GitWrapper repo
-       :param str branch: Local branch name to rebase
+       :param str branch: Branch name to rebase (same name on local and remote)
        :param str commit: Commit sha to rebase to
-       :param str remote: Remote name
+       :param str remote: Remote name to use as base and push rebase result to
        :param str timestamp: Timestamp used in tag to previous remote HEAD
        :param bool dev_mode: Whether to run the push commands as dry-run only
        :param int max_retries: How many retry attempts if remote changed during
