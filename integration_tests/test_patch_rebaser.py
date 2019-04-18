@@ -2,7 +2,9 @@ from mock import patch
 import os
 import time
 
+from git_wrapper import exceptions as gw_exceptions
 from git_wrapper.repo import GitRepo
+import pytest
 
 from patch_rebaser.patch_rebaser import Rebaser
 
@@ -143,3 +145,38 @@ def test_rebase_retry_logic(
 
     patches_repo = GitRepo(patches_repo_root)
     assert patches_repo.repo.head.commit.hexsha in log[0]
+
+
+def test_rebase_avoid_pushing_unnecessary_tags(local_repo, patches_repo_root):
+    """
+    GIVEN a local repository initialized with origin and upstream remotes
+    WHEN running Rebaser.rebase_and_update_remote
+    AND the rebase history doesn't change
+    THEN the newly created tag doesn't get pushed to the remote
+    """
+    patches_repo = GitRepo(patches_repo_root)
+    commit_to_rebase_to = "61a18a2a"
+
+    # Rebase
+    rebaser = Rebaser(
+        local_repo, "master", commit_to_rebase_to, "origin", "0000", False
+    )
+    rebaser.rebase_and_update_remote()
+
+    # Assert remote repo was updated with the rebase result
+    rebased_head = local_repo.repo.head.commit.hexsha
+    assert patches_repo.repo.head.commit.hexsha == rebased_head
+
+    # Run another rebase - no changes but new timestamp
+    rebaser = Rebaser(
+        local_repo, "master", commit_to_rebase_to, "origin", "0001", False
+    )
+    rebaser.rebase_and_update_remote()
+
+    # Check the first tag was pushed, but not the second one
+    patches_repo.commit.describe("private-rebaser-0000-previous")
+    try:
+        patches_repo.commit.describe("private-rebaser-0001-previous")
+        pytest.fail("Tag was pushed when it shouldn't have")
+    except gw_exceptions.ReferenceNotFoundException:
+        pass
