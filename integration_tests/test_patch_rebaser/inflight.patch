@@ -1,0 +1,16 @@
+From 33e50a2f04737c8c52b420afc2d65101ba5fcc6a Mon Sep 17 00:00:00 2001
+From: Julie Pichon <jpichon@redhat.com>
+Date: Thu, 18 Apr 2019 10:55:10 +0100
+Subject: [PATCH] INFLIGHT - New patch added during rebase
+
+---
+ inflight.txt | 0
+ 1 file changed, 0 insertions(+), 0 deletions(-)
+ create mode 100644 inflight.txt
+
+diff --git a/inflight.txt b/inflight.txt
+new file mode 100644
+index 0000000..e69de29
+-- 
+2.20.1
+
