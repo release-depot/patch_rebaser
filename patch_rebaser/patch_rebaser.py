@@ -147,8 +147,7 @@ class Rebaser(object):
                                 reset_if_exists=True)
 
         # Tag the previous branch's HEAD, before rebase
-        # TODO(jpichon): Replace repo.repo call with a proper git_wrapper call
-        tag = self.repo.repo.create_tag(self.tag_name, self.remote_branch)
+        self.repo.tag.create(self.tag_name, self.remote_branch)
 
         # Rebase
         self.perform_rebase()
@@ -156,11 +155,7 @@ class Rebaser(object):
         # Check if any new changes have come in
         self.repo.remote.fetch(self.remote)
 
-        # TODO(jpichon): Replace repo.repo call with a proper git_wrapper call,
-        # by updating git_wrapper to offer a more sensible comparison function
-        remote_tip_ref = self.repo.repo.remotes[self.remote].refs[self.branch]
-        remote_sha = remote_tip_ref.commit.hexsha
-        if tag.commit.hexsha != remote_sha:
+        if not self.repo.commit.same(self.tag_name, self.remote_branch):
             if self.max_retries > 0:
                 LOGGER.info("Remote changed during rebase. Remaining "
                             "attempts: %s", self.max_retries)
@@ -168,7 +163,7 @@ class Rebaser(object):
                 self.max_retries -= 1
 
                 # We'll need to move the tag to the new HEAD
-                self.repo.git.tag("-d", self.tag_name)
+                self.repo.tag.delete(self.tag_name)
                 self.rebase_and_update_remote()
             else:
                 # The remote changed several times while we were trying
@@ -205,7 +200,7 @@ class Rebaser(object):
         # and the local branch, just delete the local tag and move on.
         if not self.repo.branch.cherry_on_head_only(
                 self.remote_branch, self.branch):
-            self.repo.git.tag("-d", self.tag_name)
+            self.repo.tag.delete(self.tag_name)
             return
 
         if self.dev_mode:
