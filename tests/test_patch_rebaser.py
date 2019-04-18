@@ -53,7 +53,7 @@ def test_update_remote_patches_branch_no_changes_with_remote(mock_repo):
     WHEN update_remote_patches_branch is called
     AND cherry_on_head_only returns false (indicating the local and remote
         branches have no differences)
-    THEN git.tag is called as the tag gets deleted
+    THEN tag.delete is called
     AND git.push is not called
     """
     mock_repo.branch.cherry_on_head_only.return_value = False
@@ -62,8 +62,7 @@ def test_update_remote_patches_branch_no_changes_with_remote(mock_repo):
                       "my_tstamp", dev_mode=True)
     rebaser.update_remote_patches_branch()
 
-    # Tag deleted and no pushes
-    mock_repo.git.tag.assert_called_once()
+    mock_repo.tag.delete.assert_called_once()
     assert mock_repo.git.push.called is False
 
 
@@ -72,7 +71,7 @@ def test_update_remote_patches_branch_with_dev_mode(mock_repo):
     GIVEN Rebaser initialized correctly
     WITH dev_mode set to true
     WHEN update_remote_patches_branch is called
-    THEN git.tag is not called as the tag doesn't get deleted
+    THEN tag.delete is not called
     AND git.push is called with -n argument for dry-run
     """
     mock_repo.branch.cherry_on_head_only.return_value = True
@@ -82,7 +81,7 @@ def test_update_remote_patches_branch_with_dev_mode(mock_repo):
     rebaser.update_remote_patches_branch()
 
     # Tag not deleted, and pushed with -n for dry-run
-    assert mock_repo.git.tag.called is False
+    assert mock_repo.tag.delete.called is False
     assert mock_repo.git.push.called is True
 
     expected = [(("-n", "my_remote", "private-rebaser-2019-previous"),),
@@ -95,7 +94,7 @@ def test_update_remote_patches_branch_without_dev_mode(mock_repo):
     GIVEN Rebaser initialized correctly
     WITH dev_mode set to false
     WHEN update_remote_patches_branch is called
-    THEN git.tag is not called as the tag doesn't get deleted
+    THEN tag.delete is not called
     AND git.push is called without -n
     """
     mock_repo.branch.cherry_on_head_only.return_value = True
@@ -105,7 +104,7 @@ def test_update_remote_patches_branch_without_dev_mode(mock_repo):
     rebaser.update_remote_patches_branch()
 
     # Tag not deleted, and pushed without -n
-    assert mock_repo.git.tag.called is False
+    assert mock_repo.tag.delete.called is False
     assert mock_repo.git.push.called is True
 
     expected = [(("my_remote", "private-rebaser-2019-previous"),),
@@ -152,26 +151,19 @@ def test_rebase_and_update_remote(mock_repo, monkeypatch):
     """
     GIVEN Rebaser initialized correctly
     WHEN rebase_and_update_remote is called
-    THEN create_tag is called once
-    AND remote.fetch is called twice
+    THEN a tag is created
+    AND remote.fetch is called twice to catch remote updates during the rebase
     AND git.push is called
     """
-    remote, branch, remote_sha = "my_remote", "my_branch", "abc"
-
     monkeypatch.setattr(time, 'sleep', lambda s: None)
-
-    # TODO: Mock more cleanly once git_wrapper updated with comparison function
-    mock_branch = Mock(**{'commit.hexsha': remote_sha})
-    mock_remote = Mock(refs={branch: mock_branch})
-    mock_tag = Mock(**{'commit.hexsha': remote_sha})
-    mock_repo.repo = Mock(remotes={remote: mock_remote},
-                          **{'create_tag.return_value': mock_tag})
 
     rebaser = Rebaser(mock_repo, "my_branch", "my_commit", "my_remote",
                       "2019", dev_mode=True)
+
+    mock_repo.commit.same.return_value = True
     rebaser.rebase_and_update_remote()
 
-    assert mock_repo.repo.create_tag.call_count == 1
+    assert mock_repo.tag.create.call_count == 1
     assert mock_repo.remote.fetch.call_count == 2
 
     expected = [(("-n", "my_remote", "private-rebaser-2019-previous"),),
@@ -184,34 +176,21 @@ def test_rebase_and_update_remote_success_after_retry(mock_repo, monkeypatch):
     GIVEN Rebaser initialized correctly
     WHEN rebase_and_update_remote is called
     AND the remote changes once during the rebase
-    THEN create_tag is called twice
-    AND remote.fetch is called four times
-    AND git.tag is called once for deleting the first tag
+    THEN the tag gets created
+    AND the previous tag gets deleted and re-created during the retry
     AND git.push is called
     """
-    remote, branch, remote_sha = "my_remote", "my_branch", "abc"
-
     monkeypatch.setattr(time, 'sleep', lambda s: None)
-
-    # TODO: Mock more cleanly once git_wrapper updated with comparison function
-    mock_branch = Mock(**{'commit.hexsha': remote_sha})
-    mock_remote = Mock(refs={branch: mock_branch})
-
-    # First create_tag should return a different sha
-    mock_tag1 = Mock(**{'commit.hexsha': 'other_sha'})
-    mock_tag2 = Mock(**{'commit.hexsha': remote_sha})
-    mock_repo.repo = Mock(
-        remotes={remote: mock_remote},
-        **{'create_tag.side_effect': [mock_tag1, mock_tag2]}
-    )
 
     rebaser = Rebaser(mock_repo, "my_branch", "my_commit", "my_remote",
                       "my_tstamp", dev_mode=True)
+
+    mock_repo.commit.same.side_effect = [False, True]
     rebaser.rebase_and_update_remote()
 
-    assert mock_repo.repo.create_tag.call_count == 2
+    assert mock_repo.tag.create.call_count == 2
     assert mock_repo.remote.fetch.call_count == 4
-    mock_repo.git.tag.assert_called_once()  # Tag deletion done once
+    mock_repo.tag.delete.assert_called_once()
 
     mock_repo.git.push.assert_called()
 
@@ -220,36 +199,24 @@ def test_rebase_and_update_remote_stop_after_retries(mock_repo, monkeypatch):
     """
     GIVEN Rebaser initialized correctly
     WHEN rebase_and_update_remote is called
-    AND the remote keeps changing during the rebase (remote head commit no
-        longer matches tag)
-    THEN create_tag is called once then once more for each retry attempt
-    AND remote.fetch is called twice then twice more per each retry attempt
-    AND git.tag is called once for every retry attempt
-    AND git.push is not called
+    AND the remote keeps changing during the rebase
+    THEN the tag gets updated (recreated) during each attempt
+    AND git.push is not called in the end
     """
-    remote, branch, remote_sha = "my_remote", "my_branch", "abc"
-
     monkeypatch.setattr(time, 'sleep', lambda s: None)
     monkeypatch.setattr(Rebaser, 'update_remote_patches_branch',
                         lambda s: None)
 
-    # TODO: Mock more cleanly once git_wrapper updated with comparison function
-    mock_branch = Mock(**{'commit.hexsha': remote_sha})
-    mock_remote = Mock(refs={branch: mock_branch})
+    mock_repo.commit.same.return_value = False
 
     def retry(max_retries):
-        # Always return a different sha for the tag, as if remote kept changing
-        mock_tag = Mock(**{'commit.hexsha': 'other_sha'})
-        mock_repo.repo = Mock(remotes={remote: mock_remote},
-                              **{'create_tag.side_effect': mock_tag})
-
         rebaser = Rebaser(mock_repo, "my_branch", "my_commit", "my_remote",
                           "my_tstamp", True, max_retries)
         rebaser.rebase_and_update_remote()
 
-        assert mock_repo.repo.create_tag.call_count == 1 + max_retries
+        assert mock_repo.tag.create.call_count == 1 + max_retries
         assert mock_repo.remote.fetch.call_count == 2 + 2 * max_retries
-        assert mock_repo.git.tag.call_count == max_retries
+        assert mock_repo.tag.delete.call_count == max_retries
         mock_repo.git.push.assert_not_called()
 
         mock_repo.reset_mock()
@@ -266,25 +233,13 @@ def test_rebase_and_update_remote_fails_next_rebase(mock_repo, monkeypatch):
     AND the remote changed once during the rebase
     AND the rebase fails with RebaseException during the second rebase
     THEN a RebaseException is raised
-    AND create_tag is called twice
-    AND git.tag is called once for deleting the first tag
     AND git.push is not called
     """
-    remote, branch, remote_sha = "my_remote", "my_branch", "abc"
     monkeypatch.setattr(time, 'sleep', lambda s: None)
 
     mock_repo.branch.rebase_to_hash.side_effect = [None,
                                                    exceptions.RebaseException]
-
-    # TODO: Mock more cleanly once git_wrapper updated with comparison function
-    mock_branch = Mock(**{'commit.hexsha': remote_sha})
-    mock_remote = Mock(refs={branch: mock_branch})
-    mock_tag1 = Mock(**{'commit.hexsha': 'other_sha'})
-    mock_tag2 = Mock(**{'commit.hexsha': remote_sha})
-    mock_repo.repo = Mock(
-        remotes={remote: mock_remote},
-        **{'create_tag.side_effect': [mock_tag1, mock_tag2]}
-    )
+    mock_repo.commit.same.side_effect = [False, True]
 
     rebaser = Rebaser(mock_repo, "my_branch", "my_commit", "my_remote",
                       "my_tstamp", dev_mode=True)
@@ -293,6 +248,6 @@ def test_rebase_and_update_remote_fails_next_rebase(mock_repo, monkeypatch):
 
     assert mock_repo.remote.fetch.call_count == 3
 
-    assert mock_repo.repo.create_tag.call_count == 2
-    mock_repo.git.tag.assert_called_once()  # Tag deletion
+    assert mock_repo.tag.create.call_count == 2
+    mock_repo.tag.delete.assert_called_once()
     mock_repo.git.push.assert_not_called()
