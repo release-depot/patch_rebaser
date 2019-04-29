@@ -6,6 +6,7 @@ try:
     import configparser
 except ImportError:  # Python 2
     import ConfigParser as configparser
+from collections import namedtuple
 from datetime import datetime
 import logging
 import os
@@ -85,7 +86,7 @@ def get_patches_repo(distroinfo_repo, pkg_name, key):
     return repo
 
 
-def get_rebaser_config():
+def get_rebaser_configparser(defaults=None):
     """Return a configparser object for patch_rebaser config"""
     # Get the config file location based on path of currently running script
     config_file = os.path.realpath(
@@ -99,12 +100,54 @@ def get_rebaser_config():
             "Configuration file {0} not found.".format(config_file)
         )
 
-    rebaser_config = configparser.ConfigParser()
-    rebaser_config.read(config_file)
-    return rebaser_config
+    parser = configparser.ConfigParser(defaults)
+    parser.read(config_file)
+    return parser
+
+
+def get_rebaser_config(defaults=None):
+    """Return a tuple with the configuration information.
+
+    If the configuration is missing an option, the value from the
+    defaults dictionary is used. If the defaults doesn't contain the
+    value either, a configparser.NoOptionError exception is raised.
+
+       :param dict defaults: Default values for config values
+
+    """
+    default_options = ['dev_mode', 'remote_name', 'git_name', 'git_email',
+                       'packages_to_process', 'dlrn_projects_ini']
+    distroinfo_options = ['patches_repo_key']
+
+    RebaserConfig = namedtuple('RebaserConfig',
+                               default_options + distroinfo_options)
+
+    parser = get_rebaser_configparser(defaults)
+
+    options = {}
+    for opt in default_options:
+        if opt == 'dev_mode':
+            options[opt] = parser.getboolean('DEFAULT', opt)
+        elif opt == 'packages_to_process':
+            pkgs = parser.get('DEFAULT', opt)
+            if pkgs:
+                pkgs = pkgs.split(",") if "," in pkgs else [pkgs]
+            options[opt] = pkgs
+        else:
+            options[opt] = parser.get('DEFAULT', opt)
+
+    if not parser.has_section('distroinfo'):
+        parser.add_section('distroinfo')
+    options['patches_repo_key'] = parser.get('distroinfo', 'patches_repo_key')
+
+    return RebaserConfig(**options)
 
 
 def set_up_git_config(name, email):
+    """Set up environment variables for git author and committer info.
+
+    This is a pre-requisite for performing a git rebase operation.
+    """
     os.environ["GIT_AUTHOR_NAME"] = name
     os.environ["GIT_AUTHOR_EMAIL"] = email
     os.environ["GIT_COMMITTER_NAME"] = name
@@ -219,61 +262,70 @@ class Rebaser(object):
             self.repo.git.push("-f", self.remote, self.branch)
 
 
+def get_dlrn_variables():
+    """Return environment variables that are set by DLRN"""
+    DLRNConfig = namedtuple(
+        'DLRNConfig',
+        ['user', 'local_repo', 'commit', 'distroinfo_repo', 'pkg_name']
+    )
+
+    return DLRNConfig(
+        os.environ['DLRN_USER'],
+        os.environ['DLRN_SOURCEDIR'],
+        os.environ['DLRN_SOURCE_COMMIT'],
+        os.environ['DLRN_DISTROINFO_REPO'],
+        os.environ['DLRN_PACKAGE_NAME']
+    )
+
+
 def main():
-    # These variables are set up by DLRN
-    user = os.environ['DLRN_USER']
-    local_repo = os.environ['DLRN_SOURCEDIR']
-    commit = os.environ['DLRN_SOURCE_COMMIT']
-    distroinfo_repo = os.environ['DLRN_DISTROINFO_REPO']
-    pkg_name = os.environ['DLRN_PACKAGE_NAME']
+    dlrn = get_dlrn_variables()
 
-    # The next variables come from patch_rebaser.ini
-    rebaser_config = get_rebaser_config()
-    dev_mode = rebaser_config.getboolean('DEFAULT', 'dev_mode')
-    remote = rebaser_config.get('DEFAULT', 'remote_name')
-    git_name = rebaser_config.get('DEFAULT', 'git_name')
-    git_email = rebaser_config.get('DEFAULT', 'git_email')
-    patches_repo_key = rebaser_config.get('distroinfo', 'patches_repo_key')
-    pkg_to_process = rebaser_config.get('DEFAULT', 'packages_to_process')
-    try:
-        dlrn_projects_ini = rebaser_config.get('DEFAULT', 'dlrn_projects_ini')
-    except configparser.NoOptionError:
-        dlrn_projects_ini = (
-            "/usr/local/share/dlrn/{0}/projects.ini".format(user))
+    # Default values for options in patch_rebaser.ini
+    defaults = {
+        'remote_name': 'remote_name',
+        'git_name': 'Your Name',
+        'git_email': 'you@example.com',
+        'packages_to_process': '',
+        'dlrn_projects_ini': (
+            '/usr/local/share/dlrn/{0}/projects.ini'.format(dlrn.user)),
+        'dev_mode': 'true',
+        'patches_repo_key': 'patches'
+    }
 
-    if pkg_to_process:
-        if "," in pkg_to_process:
-            pkg_to_process = pkg_to_process.split(",")
-        else:
-            pkg_to_process = [pkg_to_process]
+    config = get_rebaser_config(defaults)
 
-        if pkg_name not in pkg_to_process:
-            LOGGER.info(
-                "Skipping %s, as package not in list of packages_to_process",
-                pkg_name
-            )
-            return
+    if config.packages_to_process and \
+       dlrn.pkg_name not in config.packages_to_process:
+        LOGGER.info(
+            "Skipping %s, as package not in list of packages_to_process",
+            dlrn.pkg_name
+        )
+        return
 
-    set_up_git_config(git_name, git_email)
+    set_up_git_config(config.git_name, config.git_email)
 
-    repo = GitRepo(local_repo)
+    repo = GitRepo(dlrn.local_repo)
 
     # Create a remote for the patches branch
     patches_repo = get_patches_repo(
-        distroinfo_repo, pkg_name, patches_repo_key
+        dlrn.distroinfo_repo, dlrn.pkg_name, config.patches_repo_key
     )
     if not patches_repo:
         return
 
-    if remote not in repo.remote.names():
-        if not repo.remote.add(remote, patches_repo):
+    if config.remote_name not in repo.remote.names():
+        if not repo.remote.add(config.remote_name, patches_repo):
             raise Exception(
-                "Could not add remote {0} ({1})".format(remote, patches_repo)
+                "Could not add remote {0} ({1})".format(config.remote_name,
+                                                        patches_repo)
             )
     repo.remote.fetch_all()
 
     # Create local patches branch
-    branch_name = get_patches_branch(repo, remote, dlrn_projects_ini)
+    branch_name = get_patches_branch(repo,
+                                     config.remote_name,
+                                     config.dlrn_projects_ini)
 
     # Not every project has a -patches branch for every release
     if not branch_name:
@@ -284,7 +336,12 @@ def main():
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
 
     # Perform rebase & force push result
-    rebaser = Rebaser(repo, branch_name, commit, remote, timestamp, dev_mode)
+    rebaser = Rebaser(repo,
+                      branch_name,
+                      dlrn.commit,
+                      config.remote_name,
+                      timestamp,
+                      config.dev_mode)
     rebaser.rebase_and_update_remote()
 
 
