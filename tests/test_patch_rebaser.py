@@ -4,11 +4,14 @@
 import time
 
 from git_wrapper import exceptions
-from mock import Mock
+from mock import MagicMock, Mock
 import pytest
 
+import patch_rebaser
 from patch_rebaser.patch_rebaser import (
     find_patches_branch,
+    get_rebaser_config,
+    main,
     parse_distro_info_path,
     Rebaser,
 )
@@ -251,3 +254,71 @@ def test_rebase_and_update_remote_fails_next_rebase(mock_repo, monkeypatch):
     assert mock_repo.tag.create.call_count == 2
     mock_repo.tag.delete.assert_called_once()
     mock_repo.git.push.assert_not_called()
+
+
+def test_get_rebaser_config_with_fallback_value(mock_config):
+    """
+    GIVEN a dictionary defining configuration defaults
+    WHEN get_rebaser_config is called
+    AND an option doesn't exist in the config
+    THEN the value from the dictionary is returned
+    """
+    defaults = {'git_name': 'TEST', 'remote_name': 'Wrong_name'}
+    config = get_rebaser_config(defaults)
+
+    assert config.git_name == defaults['git_name']
+
+
+def test_get_rebaser_config_defaults_dont_override_ini_values(mock_config):
+    """
+    GIVEN a dictionary defining configuration defaults
+    WHEN get_rebaser_config is called
+    AND an option exists both in the ini config and the defaults dictionary
+    THEN the value from the ini config is returned
+    """
+    defaults = {'git_name': 'TEST', 'remote_name': 'Wrong_name'}
+    config = get_rebaser_config(defaults)
+
+    assert config.remote_name == "test_remote_name"
+
+
+def test_main_function(mock_env, mock_config, monkeypatch):
+    """
+    GIVEN a valid patch_rebaser configuration and environment
+    WHEN main() is called
+    THEN GitRepo.rebase_to_hash is called with the correct parameters
+    AND GitRepo.git.push is called
+    """
+    branch_name = 'test_branch'
+    commit_to_rebase_to = '123456a'
+    repo = MagicMock()
+
+    with monkeypatch.context() as m:
+        m.setattr(patch_rebaser.patch_rebaser, 'GitRepo',
+                  Mock(return_value=repo))
+        m.setattr(patch_rebaser.patch_rebaser, 'get_patches_repo', Mock())
+        m.setattr(patch_rebaser.patch_rebaser, 'get_patches_branch',
+                  Mock(return_value=branch_name))
+        main()
+
+    repo.branch.rebase_to_hash.assert_called_once_with(
+        branch_name, commit_to_rebase_to)
+    repo.git.push.assert_called()
+
+
+def test_packages_to_process_skips_packages_not_in_the_list(
+        mock_env, mock_config_with_pkgs_to_process, monkeypatch):
+    """
+    GIVEN a valid patch_rebaser configuration and environment
+    WITH packages_to_process set to a list of package names
+    WHEN main() is called
+    AND the package name given by DLRN is not in packages_to_process
+    THEN the Rebaser is not called and the script ends early
+    """
+    mock_gitrepo = Mock()
+
+    with monkeypatch.context() as m:
+        m.setattr(patch_rebaser.patch_rebaser, 'GitRepo', mock_gitrepo)
+        main()
+
+    mock_gitrepo.assert_not_called()
