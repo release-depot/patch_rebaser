@@ -64,6 +64,21 @@ def parse_distro_info_path(path):
     return info_file, info_repo, remote
 
 
+def parse_gerrit_remote_url(url):
+    """Break Gerrit remote url into host, port and project"""
+    # We are expecting a remote URL in the format
+    # protocol://host:port/project
+    split_url = url.split('/')
+    project = '/'.join(split_url[3:])   # The project part can contain slashes
+    host_port = split_url[2].split(':')
+    host = host_port[0]
+    if len(host_port) > 1:
+        port = host_port[1]
+    else:
+        port = '29418'        # Default Gerrit port
+    return host, port, project
+
+
 def get_distro_info(distroinfo_repo):
     """Set up distro_info based on path"""
     info_file, info_repo, remote = parse_distro_info_path(distroinfo_repo)
@@ -154,6 +169,26 @@ def set_up_git_config(name, email):
     os.environ["GIT_COMMITTER_EMAIL"] = email
 
 
+def generate_gitreview(path, project, host, port, branch, remote):
+    """Write a new .gitreview file to disk.
+
+        :param str path: Directory where the file will be written
+        :param str project: Name of the project
+        :param str host: Gerrit host
+        :param str port: Port for Gerrit host
+        :param str branch: Git branch to use as defaultbranch
+        :param str remote: Git remote to use as defaultremote
+    """
+    with open(os.path.join(path, '.gitreview'), 'w') as fp:
+        fp.write("[gerrit]\n")
+        fp.write("host=%s\n" % host)
+        fp.write("port=%s\n" % port)
+        fp.write("project=%s.git\n" % project)
+        fp.write("defaultbranch=%s\n" % branch)
+        fp.write("defaultremote=%s\n" % remote)
+        fp.write("defaultrebase=1\n")
+
+
 class Rebaser(object):
 
     def __init__(self, repo, branch, commit, remote, timestamp,
@@ -225,13 +260,36 @@ class Rebaser(object):
 
     def perform_rebase(self):
         """Rebase the specific local branch to the specific commit."""
-        try:
-            LOGGER.info("Rebasing %s to %s", self.branch, self.commit)
-            self.repo.branch.rebase_to_hash(self.branch, self.commit)
-        except git_exceptions.RebaseException:
-            LOGGER.info("Could not rebase. Cleaning up.")
-            self.repo.branch.abort_rebase()
-            raise
+        rebase_done = False
+        while not rebase_done:
+            try:
+                LOGGER.info("Rebasing %s to %s", self.branch, self.commit)
+                self.repo.branch.rebase_to_hash(self.branch, self.commit)
+                rebase_done = True
+            except git_exceptions.RebaseException as e:
+                if not self.try_automated_rebase_fix(e):
+                    LOGGER.info("Could not rebase. Cleaning up.")
+                    self.repo.branch.abort_rebase()
+                    raise
+
+    def try_automated_rebase_fix(self, exception):
+        """Try to automatically fix a failed rebase.
+
+        There will be a number of rebase failures we can try to fix in an
+        automated way. Initially, failures related to the .gitreview file
+        will be attempted.
+        """
+        if '.gitreview' in str(exception):
+            LOGGER.warning("A patch including the .gitreview file failed "
+                           "to rebase, skipping it.")
+            try:
+                self.repo.git.rebase('--skip')
+                self._rebuild_gitreview()
+                return True
+            except Exception as e:
+                LOGGER.error("Failed to fix rebase error: %s" % e)
+                return False
+        return False
 
     def update_remote_patches_branch(self):
         """Force push local patches branch to the remote repository.
@@ -260,6 +318,19 @@ class Rebaser(object):
             )
             self.repo.git.push(self.remote, self.tag_name)
             self.repo.git.push("-f", self.remote, self.branch)
+
+    def _rebuild_gitreview(self):
+        dlrn = get_dlrn_variables()
+        url = self.repo.repo.remote(self.remote).url
+        if isinstance(url, list):
+            url = url[0]
+        host, port, project = parse_gerrit_remote_url(url)
+        generate_gitreview(dlrn.local_repo, project, host, port, self.branch,
+                           self.remote)
+        # Now push the change
+        self.repo.commit.commit('RHOS:  use internal gerrit - DROP-IN-RPM\n\n'
+                                'Change-Id: I400187d0e03127743aad09d859988991'
+                                'e965ff7e')
 
 
 def get_dlrn_variables():

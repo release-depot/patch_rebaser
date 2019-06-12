@@ -13,6 +13,7 @@ from patch_rebaser.patch_rebaser import (
     get_rebaser_config,
     main,
     parse_distro_info_path,
+    parse_gerrit_remote_url,
     Rebaser,
 )
 
@@ -322,3 +323,90 @@ def test_packages_to_process_skips_packages_not_in_the_list(
         main()
 
     mock_gitrepo.assert_not_called()
+
+
+def test_rebase_exception_gitreview(mock_repo):
+    """
+    GIVEN Rebaser initialized correctly
+    WHEN perform_rebase asserts with RebaseException
+    THEN Rebaser calls the try_automated_rebase_fix method
+    """
+    mock_repo.branch.rebase_to_hash.side_effect = [
+        exceptions.RebaseException('.gitreview failed to rebase'),
+        True]
+    rebaser = Rebaser(mock_repo, "my_branch", "my_commit", "my_remote",
+                      "my_tstamp", dev_mode=True)
+
+    rebaser.try_automated_rebase_fix = Mock()
+    rebaser.try_automated_rebase_fix.side_effect = [True]
+    rebaser.perform_rebase()
+    rebaser.try_automated_rebase_fix.assert_called()
+
+
+def test_try_automated_rebase_fix(mock_repo):
+    """
+    GIVEN Rebaser initialized correctly
+    WHEN perform_rebase asserts with RebaseException
+    AND the exception contains .gitreview in the exception message
+    AND Rebaser calls the try_automated_rebase_fix method
+    THEN try_automated_rebase_fix detects .gitreview in the exception message
+    AND calls git.rebase('--skip') and _rebuild_gitreview
+    """
+
+    rebaser = Rebaser(mock_repo, "my_branch", "my_commit", "my_remote",
+                      "my_tstamp", dev_mode=True)
+    rebaser._rebuild_gitreview = Mock()
+    exception = exceptions.RebaseException('.gitreview failed to rebase')
+    output = rebaser.try_automated_rebase_fix(exception)
+
+    mock_repo.git.rebase.assert_called_with('--skip')
+    rebaser._rebuild_gitreview.assert_called()
+    assert output is True
+
+
+def test_rebase_exception_not_gitreview(mock_repo):
+    """
+    GIVEN Rebaser initialized correctly
+    WHEN perform_rebase asserts with RebaseException
+    AND the exception message does not contain .gitreview
+    THEN Rebaser calls the repo.branch.abort_rebase method
+    """
+    mock_repo.branch.rebase_to_hash.side_effect = [
+        exceptions.RebaseException('Whatever other exception'),
+        True]
+    rebaser = Rebaser(mock_repo, "my_branch", "my_commit", "my_remote",
+                      "my_tstamp", dev_mode=True)
+
+    rebaser.repo.branch.abort_rebase = Mock()
+    with pytest.raises(exceptions.RebaseException):
+        rebaser.perform_rebase()
+    rebaser.repo.branch.abort_rebase.assert_called()
+
+
+def test_parse_gerrit_remote_url_ssh():
+    """
+    GIVEN a url containing protocol, host, port and project
+    WHEN calling parse_gerrit_remote_url with the url
+    THEN We get the expected values for host, port and project
+    """
+    host, port, project = parse_gerrit_remote_url(
+        'ssh://code.example.com:22/kolla')
+
+    assert host == 'code.example.com'
+    assert port == '22'
+    assert project == 'kolla'
+
+
+def test_parse_gerrit_remote_url_https_noport():
+    """
+    GIVEN a url containing protocol, host, project but no port
+    WHEN calling parse_gerrit_remote_url with the url
+    THEN We get the expected values for host and project
+    AND the expected default value for port (29418)
+    """
+    host, port, project = parse_gerrit_remote_url(
+        'https://user@code.example.com/base/name')
+
+    assert host == 'user@code.example.com'
+    assert port == '29418'
+    assert project == 'base/name'
