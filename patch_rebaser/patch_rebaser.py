@@ -35,6 +35,40 @@ def find_patches_branch(repo, remote, distgit_branch):
     return None
 
 
+def create_patches_branch(repo, commit, remote, dev_mode=True):
+    """Create new patches branch from commit"""
+    branch_name = os.environ.get('PATCHES_BRANCH', None)
+    if not branch_name:
+        LOGGER.error("No PATCHES_BRANCH env var found, cannot create branch")
+        return None
+
+    if not repo.branch.create(branch_name, commit):
+        LOGGER.error("Failed to create -patches branch")
+        return None
+
+    # Switch to the newly created branch
+    # FIXME(jpena): Maybe include this in git_wrapper?
+    repo.git.checkout(branch_name)
+    _rebuild_gitreview(repo, remote, branch_name)
+
+    # Finally, push branch before returning its name
+    if dev_mode:
+        LOGGER.warning("Dev mode: executing push commands in dry-run mode")
+        repo.git.push("-nf", remote, branch_name)
+    else:
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        LOGGER.warning(
+            "Force-pushing {branch} to {remote} ({timestamp})".format(
+                branch=branch_name,
+                remote=remote,
+                timestamp=timestamp
+            )
+        )
+        repo.git.push("-f", remote, branch_name)
+
+    return branch_name
+
+
 def get_downstream_distgit_branch(dlrn_projects_ini):
     """Get downstream distgit branch info from DLRN projects.ini"""
     config = configparser.ConfigParser()
@@ -131,7 +165,8 @@ def get_rebaser_config(defaults=None):
 
     """
     default_options = ['dev_mode', 'remote_name', 'git_name', 'git_email',
-                       'packages_to_process', 'dlrn_projects_ini']
+                       'packages_to_process', 'dlrn_projects_ini',
+                       'create_patches_branch']
     distroinfo_options = ['patches_repo_key']
 
     RebaserConfig = namedtuple('RebaserConfig',
@@ -141,7 +176,7 @@ def get_rebaser_config(defaults=None):
 
     options = {}
     for opt in default_options:
-        if opt == 'dev_mode':
+        if opt == 'dev_mode' or opt == 'create_patches_branch':
             options[opt] = parser.getboolean('DEFAULT', opt)
         elif opt == 'packages_to_process':
             pkgs = parser.get('DEFAULT', opt)
@@ -187,6 +222,20 @@ def generate_gitreview(path, project, host, port, branch, remote):
         fp.write("defaultbranch=%s\n" % branch)
         fp.write("defaultremote=%s\n" % remote)
         fp.write("defaultrebase=1\n")
+
+
+def _rebuild_gitreview(repo, remote, branch):
+    dlrn = get_dlrn_variables()
+    url = repo.repo.remote(remote).url
+    if isinstance(url, list):
+        url = url[0]
+    host, port, project = parse_gerrit_remote_url(url)
+    generate_gitreview(dlrn.local_repo, project, host, port, branch,
+                       remote)
+    # Now push the change
+    repo.commit.commit('RHOS:  use internal gerrit - DROP-IN-RPM\n\n'
+                       'Change-Id: I400187d0e03127743aad09d859988991'
+                       'e965ff7e')
 
 
 class Rebaser(object):
@@ -284,7 +333,7 @@ class Rebaser(object):
                            "to rebase, skipping it.")
             try:
                 self.repo.git.rebase('--skip')
-                self._rebuild_gitreview()
+                _rebuild_gitreview(self.repo, self.remote, self.branch)
                 return True
             except Exception as e:
                 LOGGER.error("Failed to fix rebase error: %s" % e)
@@ -319,19 +368,6 @@ class Rebaser(object):
             self.repo.git.push(self.remote, self.tag_name)
             self.repo.git.push("-f", self.remote, self.branch)
 
-    def _rebuild_gitreview(self):
-        dlrn = get_dlrn_variables()
-        url = self.repo.repo.remote(self.remote).url
-        if isinstance(url, list):
-            url = url[0]
-        host, port, project = parse_gerrit_remote_url(url)
-        generate_gitreview(dlrn.local_repo, project, host, port, self.branch,
-                           self.remote)
-        # Now push the change
-        self.repo.commit.commit('RHOS:  use internal gerrit - DROP-IN-RPM\n\n'
-                                'Change-Id: I400187d0e03127743aad09d859988991'
-                                'e965ff7e')
-
 
 def get_dlrn_variables():
     """Return environment variables that are set by DLRN"""
@@ -361,7 +397,8 @@ def main():
         'dlrn_projects_ini': (
             '/usr/local/share/dlrn/{0}/projects.ini'.format(dlrn.user)),
         'dev_mode': 'true',
-        'patches_repo_key': 'patches'
+        'patches_repo_key': 'patches',
+        'create_patches_branch': 'false'
     }
 
     config = get_rebaser_config(defaults)
@@ -400,7 +437,18 @@ def main():
 
     # Not every project has a -patches branch for every release
     if not branch_name:
-        # TODO: (future) Create and set up patches branch
+        if config.create_patches_branch:
+            LOGGER.warning('Patches branch does not exist, creating it')
+            branch_name = create_patches_branch(
+                repo, dlrn.commit, config.remote_name,
+                dev_mode=config.dev_mode)
+            if not branch_name:
+                raise Exception('Could not create -patches branch')
+        else:
+            LOGGER.warning('Patches branch does not exist, not creating it')
+
+        # We do not need to rebase now, since the branch was
+        # created on using the upstream commit as a HEAD
         return
 
     # Timestamp that will be used to tag the previous branch tip

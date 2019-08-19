@@ -12,6 +12,9 @@ dlrn_projects_ini =
 # Do not force-push to remotes or do other destructive operations
 # while in development mode
 dev_mode = true
+# Do not auto-create -patches branches when missing, unless explicitly
+# enabled
+create_patches_branch = false
 
 [distroinfo]
 # 'patches' is the default in rdoinfo for finding the patches repo
