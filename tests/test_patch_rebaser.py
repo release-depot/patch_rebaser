@@ -5,10 +5,12 @@ import time
 
 from git_wrapper import exceptions
 from mock import MagicMock, Mock
+import mock
 import pytest
 
 import patch_rebaser
 from patch_rebaser.patch_rebaser import (
+    create_patches_branch,
     find_patches_branch,
     get_rebaser_config,
     main,
@@ -343,7 +345,8 @@ def test_rebase_exception_gitreview(mock_repo):
     rebaser.try_automated_rebase_fix.assert_called()
 
 
-def test_try_automated_rebase_fix(mock_repo):
+@mock.patch('patch_rebaser.patch_rebaser._rebuild_gitreview')
+def test_try_automated_rebase_fix(reb_mock, mock_repo):
     """
     GIVEN Rebaser initialized correctly
     WHEN perform_rebase asserts with RebaseException
@@ -355,12 +358,12 @@ def test_try_automated_rebase_fix(mock_repo):
 
     rebaser = Rebaser(mock_repo, "my_branch", "my_commit", "my_remote",
                       "my_tstamp", dev_mode=True)
-    rebaser._rebuild_gitreview = Mock()
+
     exception = exceptions.RebaseException('.gitreview failed to rebase')
     output = rebaser.try_automated_rebase_fix(exception)
 
     mock_repo.git.rebase.assert_called_with('--skip')
-    rebaser._rebuild_gitreview.assert_called()
+    reb_mock.assert_called()
     assert output is True
 
 
@@ -410,3 +413,87 @@ def test_parse_gerrit_remote_url_https_noport():
     assert host == 'user@code.example.com'
     assert port == '29418'
     assert project == 'base/name'
+
+
+def test_rebaser_missing_patches_branch_no_create(mock_env, mock_config,
+                                                  monkeypatch):
+    """
+    GIVEN a valid patch_rebaser configuration and environment
+    WHEN main() is called
+    AND the -patches branch is missing
+    AND create_patches_branch is set to false
+    THEN create_patches_branch is not called
+    """
+    repo = MagicMock()
+
+    with monkeypatch.context() as m:
+        m.setattr(patch_rebaser.patch_rebaser, 'GitRepo',
+                  Mock(return_value=repo))
+        m.setattr(patch_rebaser.patch_rebaser, 'get_patches_repo', Mock())
+        m.setattr(patch_rebaser.patch_rebaser, 'get_patches_branch',
+                  Mock(return_value=None))
+        patch_rebaser.patch_rebaser.create_patches_branch = MagicMock()
+        main()
+
+    assert patch_rebaser.patch_rebaser.create_patches_branch.called is False
+
+
+def test_rebaser_missing_patches_branch_create(
+        mock_env, mock_config_with_create_patches_branch, monkeypatch):
+    """
+    GIVEN a valid patch_rebaser configuration and environment
+    WHEN main() is called
+    AND the -patches branch is missing
+    AND create_patches_branch is set to true
+    THEN create_patches_branch is called
+    """
+    repo = MagicMock()
+
+    with monkeypatch.context() as m:
+        m.setattr(patch_rebaser.patch_rebaser, 'GitRepo',
+                  Mock(return_value=repo))
+        m.setattr(patch_rebaser.patch_rebaser, 'get_patches_repo', Mock())
+        m.setattr(patch_rebaser.patch_rebaser, 'get_patches_branch',
+                  Mock(return_value=None))
+        patch_rebaser.patch_rebaser.create_patches_branch = MagicMock()
+        main()
+
+    assert patch_rebaser.patch_rebaser.create_patches_branch.called is True
+
+
+def test_create_branch_with_dev_mode(mock_repo, mock_env, monkeypatch):
+    """
+    GIVEN a valid patch_rebaser configuration and environment
+    WHEN create_patches_branch() is called
+    AND dev_mode is set to True
+    THEN _rebuild_gitreview is called
+    AND git.push is called with -nf as parameter
+    """
+
+    patch_rebaser.patch_rebaser._rebuild_gitreview = MagicMock()
+    create_patches_branch(mock_repo, '123456a', 'my_remote')
+
+    assert patch_rebaser.patch_rebaser._rebuild_gitreview.called is True
+    assert mock_repo.git.push.called is True
+
+    expected = [(("-nf", "my_remote", "test-patches"),)]
+    assert mock_repo.git.push.call_args_list == expected
+
+
+def test_create_branch_without_dev_mode(mock_repo, mock_env, monkeypatch):
+    """
+    GIVEN a valid patch_rebaser configuration and environment
+    WHEN create_patches_branch() is called
+    AND dev_mode is set to False
+    THEN _rebuild_gitreview is called
+    AND git.push is called with -f as parameter
+    """
+
+    patch_rebaser.patch_rebaser._rebuild_gitreview = MagicMock()
+    create_patches_branch(mock_repo, '123456a', 'my_remote', dev_mode=False)
+
+    assert patch_rebaser.patch_rebaser._rebuild_gitreview.called is True
+    assert mock_repo.git.push.called is True
+
+    expected = [(("-f", "my_remote", "test-patches"),)]
+    assert mock_repo.git.push.call_args_list == expected
