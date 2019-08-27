@@ -476,7 +476,7 @@ def test_create_branch_with_dev_mode(mock_repo, mock_env, monkeypatch):
     assert patch_rebaser.patch_rebaser._rebuild_gitreview.called is True
     assert mock_repo.git.push.called is True
 
-    expected = [(("-nf", "my_remote", "test-patches"),)]
+    expected = [(("-n", "my_remote", "test-patches"),)]
     assert mock_repo.git.push.call_args_list == expected
 
 
@@ -495,5 +495,5 @@ def test_create_branch_without_dev_mode(mock_repo, mock_env, monkeypatch):
     assert patch_rebaser.patch_rebaser._rebuild_gitreview.called is True
     assert mock_repo.git.push.called is True
 
-    expected = [(("-f", "my_remote", "test-patches"),)]
+    expected = [(("my_remote", "test-patches"),)]
     assert mock_repo.git.push.call_args_list == expected

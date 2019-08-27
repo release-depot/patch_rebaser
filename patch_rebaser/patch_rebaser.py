@@ -54,17 +54,17 @@ def create_patches_branch(repo, commit, remote, dev_mode=True):
     # Finally, push branch before returning its name
     if dev_mode:
         LOGGER.warning("Dev mode: executing push commands in dry-run mode")
-        repo.git.push("-nf", remote, branch_name)
+        repo.git.push("-n", remote, branch_name)
     else:
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         LOGGER.warning(
-            "Force-pushing {branch} to {remote} ({timestamp})".format(
+            "Pushing {branch} to {remote} ({timestamp})".format(
                 branch=branch_name,
                 remote=remote,
                 timestamp=timestamp
             )
         )
-        repo.git.push("-f", remote, branch_name)
+        repo.git.push(remote, branch_name)
 
     return branch_name
 
