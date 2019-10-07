@@ -85,6 +85,13 @@ def get_patches_branch(repo, remote, dlrn_projects_ini):
     return find_patches_branch(repo, remote, distgit_branch)
 
 
+def get_release_from_branch_name(branch_name):
+    try:
+        return branch_name.split('-')[1]
+    except IndexError:
+        return 'Unknown'
+
+
 def parse_distro_info_path(path):
     """Break distro_info path into repo + file"""
     path = path.strip().rsplit("/", 1)
@@ -241,7 +248,7 @@ def _rebuild_gitreview(repo, remote, branch):
 class Rebaser(object):
 
     def __init__(self, repo, branch, commit, remote, timestamp,
-                 dev_mode=True, max_retries=3):
+                 dev_mode=True, max_retries=3, release='unknown'):
         """Initialize the Rebaser
 
        :param git_wrapper.GitRepo repo: An initialized GitWrapper repo
@@ -252,13 +259,17 @@ class Rebaser(object):
        :param bool dev_mode: Whether to run the push commands as dry-run only
        :param int max_retries: How many retry attempts if remote changed during
                                rebase
+       :param str release: Used in the tag name, informational only
         """
         self.repo = repo
         self.branch = branch
         self.commit = commit
         self.remote = remote
         self.timestamp = timestamp
-        self.tag_name = "private-rebaser-{0}-previous".format(timestamp)
+        self.tag_name = (
+            "private-rebaser-{release}-{timestamp}-previous".format(
+                release=release, timestamp=timestamp)
+        )
         self.dev_mode = dev_mode
         self.max_retries = max_retries
 
@@ -454,13 +465,18 @@ def main():
     # Timestamp that will be used to tag the previous branch tip
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
 
+    # Release will also be used in the tag name
+    release = get_release_from_branch_name(branch_name)
+
     # Perform rebase & force push result
     rebaser = Rebaser(repo,
                       branch_name,
                       dlrn.commit,
                       config.remote_name,
                       timestamp,
-                      config.dev_mode)
+                      config.dev_mode,
+                      release)
+
     rebaser.rebase_and_update_remote()
 
 

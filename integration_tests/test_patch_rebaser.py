@@ -159,7 +159,8 @@ def test_rebase_avoid_pushing_unnecessary_tags(local_repo, patches_repo_root):
 
     # Rebase
     rebaser = Rebaser(
-        local_repo, "master", commit_to_rebase_to, "origin", "0000", False
+        local_repo, "master", commit_to_rebase_to, "origin", "0000", False,
+        release='15.0'
     )
     rebaser.rebase_and_update_remote()
 
@@ -169,14 +170,15 @@ def test_rebase_avoid_pushing_unnecessary_tags(local_repo, patches_repo_root):
 
     # Run another rebase - no changes but new timestamp
     rebaser = Rebaser(
-        local_repo, "master", commit_to_rebase_to, "origin", "0001", False
+        local_repo, "master", commit_to_rebase_to, "origin", "0001", False,
+        release='15.0'
     )
     rebaser.rebase_and_update_remote()
 
     # Check the first tag was pushed, but not the second one
-    patches_repo.commit.describe("private-rebaser-0000-previous")
+    patches_repo.commit.describe("private-rebaser-15.0-0000-previous")
     try:
-        patches_repo.commit.describe("private-rebaser-0001-previous")
+        patches_repo.commit.describe("private-rebaser-15.0-0001-previous")
         pytest.fail("Tag was pushed when it shouldn't have")
     except gw_exceptions.ReferenceNotFoundException:
         pass

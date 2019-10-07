@@ -13,6 +13,7 @@ from patch_rebaser.patch_rebaser import (
     create_patches_branch,
     find_patches_branch,
     get_rebaser_config,
+    get_release_from_branch_name,
     main,
     parse_distro_info_path,
     parse_gerrit_remote_url,
@@ -83,14 +84,14 @@ def test_update_remote_patches_branch_with_dev_mode(mock_repo):
     mock_repo.branch.cherry_on_head_only.return_value = True
 
     rebaser = Rebaser(mock_repo, "my_branch", "my_commit", "my_remote",
-                      "2019", dev_mode=True)
+                      "2019", dev_mode=True, release='2.1')
     rebaser.update_remote_patches_branch()
 
     # Tag not deleted, and pushed with -n for dry-run
     assert mock_repo.tag.delete.called is False
     assert mock_repo.git.push.called is True
 
-    expected = [(("-n", "my_remote", "private-rebaser-2019-previous"),),
+    expected = [(("-n", "my_remote", "private-rebaser-2.1-2019-previous"),),
                 (("-nf", "my_remote", "my_branch"),)]
     assert mock_repo.git.push.call_args_list == expected
 
@@ -113,7 +114,7 @@ def test_update_remote_patches_branch_without_dev_mode(mock_repo):
     assert mock_repo.tag.delete.called is False
     assert mock_repo.git.push.called is True
 
-    expected = [(("my_remote", "private-rebaser-2019-previous"),),
+    expected = [(("my_remote", "private-rebaser-unknown-2019-previous"),),
                 (("-f", "my_remote", "my_branch"),)]
     assert mock_repo.git.push.call_args_list == expected
 
@@ -164,7 +165,7 @@ def test_rebase_and_update_remote(mock_repo, monkeypatch):
     monkeypatch.setattr(time, 'sleep', lambda s: None)
 
     rebaser = Rebaser(mock_repo, "my_branch", "my_commit", "my_remote",
-                      "2019", dev_mode=True)
+                      "000", dev_mode=True, release='15.0')
 
     mock_repo.commit.same.return_value = True
     rebaser.rebase_and_update_remote()
@@ -172,7 +173,7 @@ def test_rebase_and_update_remote(mock_repo, monkeypatch):
     assert mock_repo.tag.create.call_count == 1
     assert mock_repo.remote.fetch.call_count == 2
 
-    expected = [(("-n", "my_remote", "private-rebaser-2019-previous"),),
+    expected = [(("-n", "my_remote", "private-rebaser-15.0-000-previous"),),
                 (("-nf", "my_remote", "my_branch"),)]
     assert mock_repo.git.push.call_args_list == expected
 
@@ -497,3 +498,15 @@ def test_create_branch_without_dev_mode(mock_repo, mock_env, monkeypatch):
 
     expected = [(("my_remote", "test-patches"),)]
     assert mock_repo.git.push.call_args_list == expected
+
+
+def test_get_release_from_branch_name():
+    branches = {
+        "rhos-16.1-trunk-patches": "16.1",
+        "rhos-90-trunk-patches": "90",
+        "rhos-10.0-patches": "10.0",
+        "my_branch": "Unknown"
+    }
+
+    for branch, release in branches.items():
+        assert get_release_from_branch_name(branch) == release
