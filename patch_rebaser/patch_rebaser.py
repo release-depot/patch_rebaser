@@ -475,7 +475,7 @@ def main():
                       config.remote_name,
                       timestamp,
                       config.dev_mode,
-                      release)
+                      release=release)
 
     rebaser.rebase_and_update_remote()
 
