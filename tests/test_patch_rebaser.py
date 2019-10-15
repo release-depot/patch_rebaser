@@ -292,8 +292,9 @@ def test_main_function(mock_env, mock_config, monkeypatch):
     WHEN main() is called
     THEN GitRepo.rebase_to_hash is called with the correct parameters
     AND GitRepo.git.push is called
+    AND the git tag pushed contains the version from the branch name
     """
-    branch_name = 'test_branch'
+    branch_name = 'test-16.1-patches'
     commit_to_rebase_to = '123456a'
     repo = MagicMock()
 
@@ -308,6 +309,10 @@ def test_main_function(mock_env, mock_config, monkeypatch):
     repo.branch.rebase_to_hash.assert_called_once_with(
         branch_name, commit_to_rebase_to)
     repo.git.push.assert_called()
+
+    # Check version in tag
+    assert repo.git.push.mock_calls[0].args[2].startswith(
+        'private-rebaser-16.1-') is True
 
 
 def test_packages_to_process_skips_packages_not_in_the_list(
