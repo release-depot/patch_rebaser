@@ -367,7 +367,8 @@ class Rebaser(object):
         if self.dev_mode:
             LOGGER.warning("Dev mode: executing push commands in dry-run mode")
             self.repo.git.push("-n", self.remote, self.tag_name)
-            self.repo.git.push("-nf", self.remote, self.branch)
+            self.repo.git.push("-nf", "--follow-tags", self.remote,
+                               self.branch)
         else:
             LOGGER.warning(
                 "Force-pushing {branch} to {remote} ({timestamp})".format(
@@ -377,7 +378,7 @@ class Rebaser(object):
                 )
             )
             self.repo.git.push(self.remote, self.tag_name)
-            self.repo.git.push("-f", self.remote, self.branch)
+            self.repo.git.push("-f", "--follow-tags", self.remote, self.branch)
 
 
 def get_dlrn_variables():
