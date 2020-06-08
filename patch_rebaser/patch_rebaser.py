@@ -78,11 +78,19 @@ def get_downstream_distgit_branch(dlrn_projects_ini):
 
 def get_patches_branch(repo, remote, dlrn_projects_ini):
     """Get the patches branch name"""
-    # Get downstream distgit branch from DLRN config
-    distgit_branch = get_downstream_distgit_branch(dlrn_projects_ini)
-
-    # Guess at patches branch based on the distgit branch name
-    return find_patches_branch(repo, remote, distgit_branch)
+    branch_name = os.environ.get('PATCHES_BRANCH', None)
+    if branch_name:
+        LOGGER.debug("Checking if branch %s exists...", branch_name)
+        if repo.branch.exists(branch_name, remote):
+            return branch_name
+        else:
+            return None
+    else:
+        # Get downstream distgit branch from DLRN config
+        distgit_branch = get_downstream_distgit_branch(dlrn_projects_ini)
+        LOGGER.warning("No PATCHES_BRANCH env var found, trying to guess it")
+        # Guess at patches branch based on the distgit branch name
+        return find_patches_branch(repo, remote, distgit_branch)
 
 
 def get_release_from_branch_name(branch_name):
