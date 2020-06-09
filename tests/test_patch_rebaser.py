@@ -92,7 +92,7 @@ def test_update_remote_patches_branch_with_dev_mode(mock_repo):
     assert mock_repo.git.push.called is True
 
     expected = [(("-n", "my_remote", "private-rebaser-2.1-2019-previous"),),
-                (("-nf", "my_remote", "my_branch"),)]
+                (("-nf", "--follow-tags", "my_remote", "my_branch"),)]
     assert mock_repo.git.push.call_args_list == expected
 
 
@@ -115,7 +115,7 @@ def test_update_remote_patches_branch_without_dev_mode(mock_repo):
     assert mock_repo.git.push.called is True
 
     expected = [(("my_remote", "private-rebaser-unknown-2019-previous"),),
-                (("-f", "my_remote", "my_branch"),)]
+                (("-f", "--follow-tags", "my_remote", "my_branch"),)]
     assert mock_repo.git.push.call_args_list == expected
 
 
@@ -174,7 +174,7 @@ def test_rebase_and_update_remote(mock_repo, monkeypatch):
     assert mock_repo.remote.fetch.call_count == 2
 
     expected = [(("-n", "my_remote", "private-rebaser-15.0-000-previous"),),
-                (("-nf", "my_remote", "my_branch"),)]
+                (("-nf", "--follow-tags", "my_remote", "my_branch"),)]
     assert mock_repo.git.push.call_args_list == expected
 
 
