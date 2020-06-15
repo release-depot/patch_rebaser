@@ -510,7 +510,10 @@ def test_get_release_from_branch_name():
         "rhos-16.1-trunk-patches": "16.1",
         "rhos-90-trunk-patches": "90",
         "rhos-10.0-patches": "10.0",
-        "my_branch": "Unknown"
+        "my_branch": "Unknown",
+        "rhos-18.0-foo-trunk-patches": "18.0-foo",
+        "rhos-13.0-octavia-patches": "13.0-octavia",
+        "rhos-10.0": "Unknown"
     }
 
     for branch, release in branches.items():

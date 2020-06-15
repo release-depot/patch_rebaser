@@ -95,7 +95,14 @@ def get_patches_branch(repo, remote, dlrn_projects_ini):
 
 def get_release_from_branch_name(branch_name):
     try:
-        return branch_name.split('-')[1]
+        release = branch_name.split('-')[1]
+        # So branch names like rhos-13.0-octavia-trunk-patches will return
+        # 13.0-octavia
+        post_release = branch_name.split('-')[2]
+        if post_release != 'trunk' and post_release != 'patches':
+            return '%s-%s' % (release, post_release)
+        else:
+            return release
     except IndexError:
         return 'Unknown'
 
