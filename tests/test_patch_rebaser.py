@@ -73,6 +73,45 @@ def test_update_remote_patches_branch_no_changes_with_remote(mock_repo):
     assert mock_repo.git.push.called is False
 
 
+def test_update_remote_patches_branch_no_changes_but_missing_commit(mock_repo):
+    """
+    GIVEN Rebaser initialized correctly
+    WHEN update_remote_patches_branch is called
+    AND cherry_on_head_only returns false (indicating the local and remote
+        branches have no differences)
+    AND branch.remote_contains returns false (indicating the remote is missing
+        an upstream commit)
+    THEN git.push is called
+    """
+    mock_repo.branch.cherry_on_head_only.return_value = False
+    mock_repo.branch.remote_contains.return_value = False
+
+    rebaser = Rebaser(mock_repo, "my_branch", "my_commit", "my_remote",
+                      "my_tstamp", dev_mode=True)
+    rebaser.update_remote_patches_branch()
+
+    assert mock_repo.git.push.called is True
+
+
+def test_update_remote_patches_branch_no_changes_and_commit_present(mock_repo):
+    """
+    GIVEN Rebaser initialized correctly
+    WHEN update_remote_patches_branch is called
+    AND cherry_on_head_only returns false (indicating the local and remote
+        branches have no differences)
+    AND branch.remote_contains returns true
+    THEN git.push is not called
+    """
+    mock_repo.branch.cherry_on_head_only.return_value = False
+    mock_repo.branch.remote_contains.return_value = True
+
+    rebaser = Rebaser(mock_repo, "my_branch", "my_commit", "my_remote",
+                      "my_tstamp", dev_mode=True)
+    rebaser.update_remote_patches_branch()
+
+    assert mock_repo.git.push.called is False
+
+
 def test_update_remote_patches_branch_with_dev_mode(mock_repo):
     """
     GIVEN Rebaser initialized correctly

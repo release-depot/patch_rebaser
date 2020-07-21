@@ -372,10 +372,19 @@ class Rebaser(object):
         Also push the tag of what was the previous head of that remote branch.
         If in dev mode, the pushes are done in dry-run mode (-n).
         """
-        # Do we need to push? If there are no changes between the remote
-        # and the local branch, just delete the local tag and move on.
+        # Do we need to push?
+        # 1. If there are no content changes between the remote
+        #    and the local branch, just delete the local tag and move on.
+        # 2. However, if a downstream-only patch merged upstream in the
+        #    meantime, the contents may be the same but we still need
+        #    to push and to remove the downstream-only patch and align
+        #    the commit hash with upstream
+        commit_on_remote = self.repo.branch.remote_contains(
+            self.remote_branch, self.commit)
+
         if not self.repo.branch.cherry_on_head_only(
-                self.remote_branch, self.branch):
+                self.remote_branch, self.branch) and commit_on_remote:
+            LOGGER.info("Deleting tag without pushing (no changes)")
             self.repo.tag.delete(self.tag_name)
             return
 
