@@ -15,6 +15,7 @@ import time
 from distroinfo import info, query
 from git_wrapper import exceptions as git_exceptions
 from git_wrapper.repo import GitRepo
+from toolchest.filesystem.git import generate_gitreview
 
 LOGGER = logging.getLogger("patch_rebaser")
 
@@ -224,26 +225,6 @@ def set_up_git_config(name, email):
     os.environ["GIT_AUTHOR_EMAIL"] = email
     os.environ["GIT_COMMITTER_NAME"] = name
     os.environ["GIT_COMMITTER_EMAIL"] = email
-
-
-def generate_gitreview(path, project, host, port, branch, remote):
-    """Write a new .gitreview file to disk.
-
-        :param str path: Directory where the file will be written
-        :param str project: Name of the project
-        :param str host: Gerrit host
-        :param str port: Port for Gerrit host
-        :param str branch: Git branch to use as defaultbranch
-        :param str remote: Git remote to use as defaultremote
-    """
-    with open(os.path.join(path, '.gitreview'), 'w') as fp:
-        fp.write("[gerrit]\n")
-        fp.write("host=%s\n" % host)
-        fp.write("port=%s\n" % port)
-        fp.write("project=%s.git\n" % project)
-        fp.write("defaultbranch=%s\n" % branch)
-        fp.write("defaultremote=%s\n" % remote)
-        fp.write("defaultrebase=1\n")
 
 
 def _rebuild_gitreview(repo, remote, branch):
