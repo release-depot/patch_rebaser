@@ -11,8 +11,6 @@ with open('README.rst') as readme_file:
 requirements = [ 'Distroinfo>=0.1',
                  'git_wrapper>=0.2.1' ]
 
-setup_requirements = [ 'pytest-runner',  ]
-
 test_requirements = [ 'mock', 'pytest', ]
 
 setup(
@@ -34,7 +32,6 @@ setup(
     keywords='patch_rebaser',
     name='patch_rebaser',
     packages=find_packages(include=['patch_rebaser']),
-    setup_requires=setup_requirements,
     test_suite='tests',
     tests_require=test_requirements,
     url='https://github.com/release-depot/patch_rebaser',
