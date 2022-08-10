@@ -8,8 +8,8 @@ from setuptools import setup, find_packages
 with open('README.rst') as readme_file:
     readme = readme_file.read()
 
-requirements = [ 'Distroinfo>=0.1,<=0.5.1',
-                 'git_wrapper>=0.2.2,<=0.2.8' ]
+requirements = [ 'Distroinfo>=0.1',
+                 'git_wrapper>=0.2.2' ]
 
 test_requirements = [ 'mock', 'pytest', ]
 
