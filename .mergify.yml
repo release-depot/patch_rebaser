@@ -6,7 +6,6 @@ queue_rules:
       # Conditions to get out of the queue (= merged)
       - check-success=flake8
       - check-success=integration
-      - check-success=test (2.7)
       - check-success=test (3.6)
       - check-success=test (3.7)
       - check-success=test (3.8)
@@ -21,7 +20,6 @@ pull_request_rules:
       # anchor
       - check-success=flake8
       - check-success=integration
-      - check-success=test (2.7)
       - check-success=test (3.6)
       - check-success=test (3.7)
       - check-success=test (3.8)
