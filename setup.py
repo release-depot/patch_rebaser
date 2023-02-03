@@ -21,8 +21,6 @@ setup(
         'License :: OSI Approved :: MIT License',
         'Natural Language :: English',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
     ],
     description="DLRN custom pre-processing script to automatically rebase patches on top of incoming repo changes.",
     install_requires=requirements,
