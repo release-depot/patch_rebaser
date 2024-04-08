@@ -69,14 +69,14 @@ def create_patches_branch(repo, commit, remote, dev_mode=True):
     return branch_name
 
 
-def get_downstream_distgit_branch(dlrn_projects_ini):
+def get_downstream_distgit_branch(dlrn_projects_ini, dlrn_driver):
     """Get downstream distgit branch info from DLRN projects.ini"""
     config = configparser.ConfigParser()
     config.read(dlrn_projects_ini)
-    return config.get('downstream_driver', 'downstream_distro_branch')
+    return config.get(dlrn_driver, 'downstream_distro_branch')
 
 
-def get_patches_branch(repo, remote, dlrn_projects_ini):
+def get_patches_branch(repo, remote, dlrn_projects_ini, dlrn_driver):
     """Get the patches branch name"""
     branch_name = os.environ.get('PATCHES_BRANCH', None)
     if branch_name:
@@ -87,7 +87,8 @@ def get_patches_branch(repo, remote, dlrn_projects_ini):
             return None
     else:
         # Get downstream distgit branch from DLRN config
-        distgit_branch = get_downstream_distgit_branch(dlrn_projects_ini)
+        distgit_branch = get_downstream_distgit_branch(dlrn_projects_ini,
+                                                       dlrn_driver)
         LOGGER.warning("No PATCHES_BRANCH env var found, trying to guess it")
         # Guess at patches branch based on the distgit branch name
         return find_patches_branch(repo, remote, distgit_branch)
@@ -188,7 +189,7 @@ def get_rebaser_config(defaults=None):
     """
     default_options = ['dev_mode', 'remote_name', 'git_name', 'git_email',
                        'packages_to_process', 'dlrn_projects_ini',
-                       'create_patches_branch']
+                       'create_patches_branch', 'dlrn_driver']
     distroinfo_options = ['patches_repo_key']
 
     RebaserConfig = namedtuple('RebaserConfig',
@@ -426,6 +427,7 @@ def main():
 
     # Default values for options in patch_rebaser.ini
     defaults = {
+        'dlrn_driver': 'downstream_driver',
         'remote_name': 'remote_name',
         'git_name': 'Your Name',
         'git_email': 'you@example.com',
@@ -469,7 +471,8 @@ def main():
     # Create local patches branch
     branch_name = get_patches_branch(repo,
                                      config.remote_name,
-                                     config.dlrn_projects_ini)
+                                     config.dlrn_projects_ini,
+                                     config.dlrn_driver)
 
     # Not every project has a -patches branch for every release
     if not branch_name:

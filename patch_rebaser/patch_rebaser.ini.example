@@ -9,6 +9,9 @@ git_email = you@example.com
 packages_to_process =
 # Location of DLRN projects.ini file (optional)
 dlrn_projects_ini =
+# DLRN driver used, in order to get the parameters from the right
+# section of the DLRN projects.ini file. (optional)
+dlrn_driver =
 # Do not force-push to remotes or do other destructive operations
 # while in development mode
 dev_mode = true

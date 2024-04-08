@@ -306,10 +306,12 @@ def test_get_rebaser_config_with_fallback_value(mock_config):
     AND an option doesn't exist in the config
     THEN the value from the dictionary is returned
     """
-    defaults = {'git_name': 'TEST', 'remote_name': 'Wrong_name'}
+    defaults = {'git_name': 'TEST',
+                'dlrn_driver': 'downstream_driver'}
     config = get_rebaser_config(defaults)
 
     assert config.git_name == defaults['git_name']
+    assert config.dlrn_driver == defaults['dlrn_driver']
 
 
 def test_get_rebaser_config_defaults_dont_override_ini_values(mock_config):
@@ -319,7 +321,9 @@ def test_get_rebaser_config_defaults_dont_override_ini_values(mock_config):
     AND an option exists both in the ini config and the defaults dictionary
     THEN the value from the ini config is returned
     """
-    defaults = {'git_name': 'TEST', 'remote_name': 'Wrong_name'}
+    defaults = {'git_name': 'TEST',
+                'dlrn_driver': 'downstream_driver',
+                'remote_name': 'Wrong_name'}
     config = get_rebaser_config(defaults)
 
     assert config.remote_name == "test_remote_name"
