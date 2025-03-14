@@ -457,8 +457,14 @@ def main():
     )
     if not patches_repo:
         return
-
-    if config.remote_name not in repo.remote.names():
+    remotes = repo.remote.names_url_dict()
+    # If the remote url has changed, we removes to re-create
+    if (config.remote_name in remotes.keys() and
+            patches_repo != remotes[config.remote_name]):
+        repo.remote.remove(config.remote_name)
+        remotes = repo.remote.names_url_dict()
+    # Create the remote if it doesn't exist
+    if config.remote_name not in remotes.keys():
         if not repo.remote.add(config.remote_name, patches_repo):
             raise Exception(
                 "Could not add remote {0} ({1})".format(config.remote_name,

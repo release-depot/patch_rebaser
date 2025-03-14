@@ -354,6 +354,27 @@ def test_main_function(mock_env, mock_config, monkeypatch):
         'private-rebaser-16.1-') is True
 
 
+def test_main_function_update_remote_url(mock_env, mock_config, monkeypatch):
+    """
+    GIVEN a valid patch_rebaser configuration and environment
+    WHEN main() is called
+    AND remote url has changed
+    THEN the remote.remove method is called
+    """
+    repo = MagicMock()
+    monkeypatch.setattr(repo.remote, 'names_url_dict',
+                        lambda: {"test_remote_name":
+                                 "http://origin_remote.com"})
+
+    with monkeypatch.context() as m:
+        m.setattr(patch_rebaser.patch_rebaser, 'GitRepo',
+                  Mock(return_value=repo))
+        m.setattr(patch_rebaser.patch_rebaser, 'get_patches_repo',
+                  Mock(return_value="http://test_repo.com"))
+        main()
+    repo.remote.remove.assert_called_once()
+
+
 def test_packages_to_process_skips_packages_not_in_the_list(
         mock_env, mock_config_with_pkgs_to_process, monkeypatch):
     """
