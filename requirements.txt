@@ -1,2 +1,2 @@
-git_wrapper>=0.2.2
+git_wrapper>=0.2.11
 Distroinfo>=0.1
